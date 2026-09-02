@@ -42,7 +42,7 @@ data "aws_iam_policy_document" "analytics_assume_role" {
     condition {
       test     = "StringEquals"
       variable = "${replace(var.eks_oidc_issuer_url, "https://", "")}:sub"
-      values   = ["system:serviceaccount:fiap-microservices:analytics-sa"]
+      values   = ["system:serviceaccount:*:analytics-sa"]
     }
     principals {
       identifiers = [var.eks_oidc_provider_arn] 

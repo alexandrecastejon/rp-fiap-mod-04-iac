@@ -52,7 +52,7 @@ data "aws_iam_policy_document" "evaluation_assume_role" {
     condition {
       test     = "StringEquals"
       variable = "${replace(var.eks_oidc_issuer_url, "https://", "")}:sub"
-      values   = ["system:serviceaccount:fiap-microservices:evaluation-sa"]
+      values   = ["system:serviceaccount:*:evaluation-sa"]
     }
     principals {
       identifiers = [var.eks_oidc_provider_arn] 
