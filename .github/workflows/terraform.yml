@@ -1,4 +1,4 @@
-name: FIAP - MODULO 03 - IAC-ADDONS
+name: FIAP - MODULO 04 - IAC-ADDONS
 
 on:
   workflow_dispatch:
@@ -154,6 +154,8 @@ jobs:
             -var="aws_region=${{ vars.AWS_REGION }}" \
             -var="eks_cluster_name=${{ env.EKS_CLUSTER_NAME }}" \
             -var="eks_argocd_domain_name=${{ vars.ARGOCD_DOMAIN_NAME }}" \
+            -var="eks_grafana_domain_name=${{ vars.GRAFANA_DOMAIN_NAME }}" \
+            -var="eks_prometheus_domain_name=${{ vars.PROMETHEUS_DOMAIN_NAME }}" \
             -var="aws_bucket_iac_name=${{ vars.AWS_BUCKET_NAME }}" \
             -var="aws_bucket_iac_folder_name=${{ vars.AWS_BUCKET_IAC_FOLDER_NAME }}" \
 
@@ -169,6 +171,8 @@ jobs:
             -var="aws_region=${{ vars.AWS_REGION }}" \
             -var="eks_cluster_name=${{ env.EKS_CLUSTER_NAME }}" \
             -var="eks_argocd_domain_name=${{ vars.ARGOCD_DOMAIN_NAME }}" \
+            -var="eks_grafana_domain_name=${{ vars.GRAFANA_DOMAIN_NAME }}" \
+            -var="eks_prometheus_domain_name=${{ vars.PROMETHEUS_DOMAIN_NAME }}" \
             -var="aws_bucket_iac_name=${{ vars.AWS_BUCKET_NAME }}" \
             -var="aws_bucket_iac_folder_name=${{ vars.AWS_BUCKET_IAC_FOLDER_NAME }}"
 
@@ -285,6 +289,32 @@ jobs:
                     }
                   ]
                 }
+              },
+              {
+                "Action": "UPSERT",
+                "ResourceRecordSet": {
+                  "Name": "${{ vars.GRAFANA_DOMAIN_NAME }}",
+                  "Type": "CNAME",
+                  "TTL": 60,
+                  "ResourceRecords": [
+                    {
+                      "Value": "$NLB_DNS"
+                    }
+                  ]
+                }
+              },
+              {
+                "Action": "UPSERT",
+                "ResourceRecordSet": {
+                  "Name": "${{ vars.PROMETHEUS_DOMAIN_NAME }}",
+                  "Type": "CNAME",
+                  "TTL": 60,
+                  "ResourceRecords": [
+                    {
+                      "Value": "$NLB_DNS"
+                    }
+                  ]
+                }
               }
             ]
           }
@@ -341,6 +371,8 @@ jobs:
             -var="aws_region=${{ vars.AWS_REGION }}" \
             -var="eks_cluster_name=${{ env.EKS_CLUSTER_NAME }}" \
             -var="eks_argocd_domain_name=${{ vars.ARGOCD_DOMAIN_NAME }}" \
+            -var="eks_grafana_domain_name=${{ vars.GRAFANA_DOMAIN_NAME }}" \
+            -var="eks_prometheus_domain_name=${{ vars.PROMETHEUS_DOMAIN_NAME }}" \
             -var="aws_bucket_iac_name=${{ vars.AWS_BUCKET_NAME }}" \
             -var="aws_bucket_iac_folder_name=${{ vars.AWS_BUCKET_IAC_FOLDER_NAME }}"
 

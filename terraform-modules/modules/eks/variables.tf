@@ -16,5 +16,5 @@ variable "allowed_ips" {
 variable "node_instance_type" {
   description = "Tamanho das máquinas do EKS"
   type        = string
-  default     = "t3.micro"
+  default     = "t3.medium"
 }

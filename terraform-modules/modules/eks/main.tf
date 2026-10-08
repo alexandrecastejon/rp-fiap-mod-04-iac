@@ -96,9 +96,9 @@ resource "aws_eks_node_group" "main" {
   instance_types  = [var.node_instance_type]
   ami_type        = "AL2023_x86_64_STANDARD"
   scaling_config {
-    min_size     = 12
-    desired_size = 14
-    max_size     = 16
+    min_size     = 1
+    desired_size = 2
+    max_size     = 3
   }
   launch_template {
     name    = aws_launch_template.eks_nodes.name

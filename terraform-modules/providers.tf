@@ -13,7 +13,7 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Project = "FIAP-MOD3"
+      Project = "FIAP-MOD4"
     }
   }
 }

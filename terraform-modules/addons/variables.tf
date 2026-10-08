@@ -22,3 +22,13 @@ variable "eks_argocd_domain_name" {
   description = "Endereço de domínio de publicação do ArgoCD"
   type        = string
 }
+
+variable "eks_grafana_domain_name" {
+  description = "Endereço de domínio de publicação do Grafana"
+  type        = string
+}
+
+variable "eks_prometheus_domain_name" {
+  description = "Endereço de domínio de publicação do Prometheus"
+  type        = string
+}
