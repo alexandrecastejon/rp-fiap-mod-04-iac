@@ -127,7 +127,7 @@ resource "aws_eks_addon" "vpc_cni" {
 # ==========================================
 
 # Permissões para o pipeline do GitHub Actions acessar o cluster EKS
-resource "aws_eks_access_entry" "github_pipeline_access" {
+resource "aws_eks_access_entry" "github_pipeline" {
   cluster_name  = aws_eks_cluster.main.name
   principal_arn = "arn:aws:iam::162521700965:user/svc-github-actions"
   type          = "STANDARD"
