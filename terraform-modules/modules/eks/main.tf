@@ -122,6 +122,10 @@ resource "aws_eks_addon" "vpc_cni" {
   })
 }
 
+# ==========================================
+# 1. ACESSO PARA O GITHUB ACTIONS
+# ==========================================
+
 # Permissões para o pipeline do GitHub Actions acessar o cluster EKS
 resource "aws_eks_access_entry" "github_pipeline_access" {
   cluster_name  = aws_eks_cluster.main.name
@@ -132,11 +136,15 @@ resource "aws_eks_access_entry" "github_pipeline_access" {
 resource "aws_eks_access_policy_association" "github_pipeline_access_admin" {
   cluster_name  = aws_eks_cluster.main.name
   policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
-  principal_arn = "arn:aws:iam::162521700965:user/svc-github-actions"
+  principal_arn = aws_eks_access_entry.github_pipeline.principal_arn
   access_scope {
     type = "cluster"
   }
 }
+
+# ==========================================
+# 2. ACESSO PARA O SEU USUÁRIO (logjeferson)
+# ==========================================
 
 # Permissões para meu usuário local acessar o cluster EKS
 resource "aws_eks_access_entry" "my_access" {
@@ -148,7 +156,7 @@ resource "aws_eks_access_entry" "my_access" {
 resource "aws_eks_access_policy_association" "my_access_admin" {
   cluster_name  = aws_eks_cluster.main.name
   policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
-  principal_arn = "arn:aws:iam::162521700965:user/logjeferson"
+  principal_arn = aws_eks_access_entry.my_access.principal_arn
   access_scope {
     type = "cluster"
   }
