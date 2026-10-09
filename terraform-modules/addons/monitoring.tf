@@ -1,4 +1,5 @@
 resource "helm_release" "kube_prometheus_stack" {
+  depends_on = [helm_release.ingress_nginx]
   name       = "kube-prometheus-stack"
   repository = "https://prometheus-community.github.io/helm-charts"
   chart      = "kube-prometheus-stack"
@@ -43,6 +44,7 @@ resource "helm_release" "kube_prometheus_stack" {
 }
 
 resource "helm_release" "loki" {
+  depends_on = [helm_release.ingress_nginx]
   name       = "loki"
   repository = "https://grafana.github.io/helm-charts"
   chart      = "loki-stack"
@@ -62,6 +64,7 @@ resource "helm_release" "loki" {
 }
 
 resource "helm_release" "opentelemetry_collector" {
+  depends_on = [helm_release.ingress_nginx]
   name       = "otel-collector"
   repository = "https://open-telemetry.github.io/opentelemetry-helm-charts"
   chart      = "opentelemetry-collector"

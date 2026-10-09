@@ -17,6 +17,8 @@ resource "helm_release" "argocd" {
       cm:
         url: "https://${var.eks_argocd_domain_name}"
     server:
+      extraArgs:
+        - --insecure
       ingress:
         enabled: true
         controller: generic
@@ -27,6 +29,7 @@ resource "helm_release" "argocd" {
         annotations:
           cert-manager.io/cluster-issuer: "letsencrypt-prod"
           nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+		  nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
         extraTls:
           - hosts:
               - "${var.eks_argocd_domain_name}"
