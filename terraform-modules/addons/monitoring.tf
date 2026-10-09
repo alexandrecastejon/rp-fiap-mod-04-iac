@@ -60,3 +60,46 @@ resource "helm_release" "loki" {
     EOT
   ]
 }
+
+resource "helm_release" "opentelemetry_collector" {
+  name       = "otel-collector"
+  repository = "https://open-telemetry.github.io/opentelemetry-helm-charts"
+  chart      = "opentelemetry-collector"
+  namespace  = "monitoring"
+  create_namespace = true
+  version    = "0.87.1"
+  values = [
+    <<-EOT
+    mode: deployment
+    config:
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:4317
+            http:
+              endpoint: 0.0.0.0:4318
+      exporters:
+        otlp/newrelic:
+          endpoint: "otlp.nr-data.net:4317"
+          headers:
+            "api-key": "${var.new_relic_license_key}"
+        prometheusremotewrite:
+          endpoint: "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/api/v1/write"
+          tls:
+            insecure: true
+        loki:
+          endpoint: "http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push"
+      service:
+        pipelines:
+          traces:
+            receivers: [otlp]
+            processors: [memory_limiter, batch]
+            exporters: [otlp/newrelic]
+          metrics:
+            receivers: [otlp]
+            processors: [memory_limiter, batch]
+            exporters: [prometheusremotewrite, otlp/newrelic]
+    EOT
+  ]
+}

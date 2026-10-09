@@ -152,12 +152,13 @@ jobs:
           echo "##[section]Planning the Addons..."
           terraform plan \
             -var="aws_region=${{ vars.AWS_REGION }}" \
+            -var="aws_bucket_iac_name=${{ vars.AWS_BUCKET_NAME }}" \
+            -var="aws_bucket_iac_folder_name=${{ vars.AWS_BUCKET_IAC_FOLDER_NAME }}" \
             -var="eks_cluster_name=${{ env.EKS_CLUSTER_NAME }}" \
             -var="eks_argocd_domain_name=${{ vars.ARGOCD_DOMAIN_NAME }}" \
             -var="eks_grafana_domain_name=${{ vars.GRAFANA_DOMAIN_NAME }}" \
             -var="eks_prometheus_domain_name=${{ vars.PROMETHEUS_DOMAIN_NAME }}" \
-            -var="aws_bucket_iac_name=${{ vars.AWS_BUCKET_NAME }}" \
-            -var="aws_bucket_iac_folder_name=${{ vars.AWS_BUCKET_IAC_FOLDER_NAME }}" \
+            -var="new_relic_license_key=${{ vars.NEW_RELIC_LICENSE_KEY }}"
 
       - name: Terraform - Apply - Addons
         working-directory: ${{ env.TF_WORKING_DIR }}/addons
@@ -169,12 +170,14 @@ jobs:
           echo "##[section]Applying the Addons..."
           terraform apply -auto-approve \
             -var="aws_region=${{ vars.AWS_REGION }}" \
+            -var="aws_bucket_iac_name=${{ vars.AWS_BUCKET_NAME }}" \
+            -var="aws_bucket_iac_folder_name=${{ vars.AWS_BUCKET_IAC_FOLDER_NAME }}" \
             -var="eks_cluster_name=${{ env.EKS_CLUSTER_NAME }}" \
+            -var="new_relic_license_key=${{ vars.NEW_RELIC_LICENSE_KEY }}" \
             -var="eks_argocd_domain_name=${{ vars.ARGOCD_DOMAIN_NAME }}" \
             -var="eks_grafana_domain_name=${{ vars.GRAFANA_DOMAIN_NAME }}" \
             -var="eks_prometheus_domain_name=${{ vars.PROMETHEUS_DOMAIN_NAME }}" \
-            -var="aws_bucket_iac_name=${{ vars.AWS_BUCKET_NAME }}" \
-            -var="aws_bucket_iac_folder_name=${{ vars.AWS_BUCKET_IAC_FOLDER_NAME }}"
+            -var="new_relic_license_key=${{ vars.NEW_RELIC_LICENSE_KEY }}"
 
   configs:
     name: 'AWS - CONFIGS'
@@ -369,12 +372,13 @@ jobs:
           echo "##[section]Destroying the Addons..."
           terraform destroy -auto-approve \
             -var="aws_region=${{ vars.AWS_REGION }}" \
+            -var="aws_bucket_iac_name=${{ vars.AWS_BUCKET_NAME }}" \
+            -var="aws_bucket_iac_folder_name=${{ vars.AWS_BUCKET_IAC_FOLDER_NAME }}" \
             -var="eks_cluster_name=${{ env.EKS_CLUSTER_NAME }}" \
             -var="eks_argocd_domain_name=${{ vars.ARGOCD_DOMAIN_NAME }}" \
             -var="eks_grafana_domain_name=${{ vars.GRAFANA_DOMAIN_NAME }}" \
             -var="eks_prometheus_domain_name=${{ vars.PROMETHEUS_DOMAIN_NAME }}" \
-            -var="aws_bucket_iac_name=${{ vars.AWS_BUCKET_NAME }}" \
-            -var="aws_bucket_iac_folder_name=${{ vars.AWS_BUCKET_IAC_FOLDER_NAME }}"
+            -var="new_relic_license_key=${{ vars.NEW_RELIC_LICENSE_KEY }}"
 
       - name: Terraform - Init - Infrastructure
         working-directory: ${{ env.TF_WORKING_DIR }}

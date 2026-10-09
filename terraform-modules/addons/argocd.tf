@@ -9,20 +9,25 @@ resource "helm_release" "argocd" {
   timeout          = 600
   values = [
     <<-EOT
+    global:
+      domain: "${var.eks_argocd_domain_name}"
     dex:
       enabled: false
+    configs:
+      cm:
+        url: "https://${var.eks_argocd_domain_name}"
     server:
-      extraArgs:
-        - --insecure
       ingress:
         enabled: true
+        controller: generic
         ingressClassName: "nginx"
+        hostname: "${var.eks_argocd_domain_name}"
+        path: /
+        pathType: Prefix
         annotations:
           cert-manager.io/cluster-issuer: "letsencrypt-prod"
           nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-        hosts:
-          - "${var.eks_argocd_domain_name}"
-        tls:
+        extraTls:
           - hosts:
               - "${var.eks_argocd_domain_name}"
             secretName: "argocd-tls-cert"

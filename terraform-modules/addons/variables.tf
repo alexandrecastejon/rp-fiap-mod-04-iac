@@ -32,3 +32,9 @@ variable "eks_prometheus_domain_name" {
   description = "Endereço de domínio de publicação do Prometheus"
   type        = string
 }
+
+variable "new_relic_license_key" {
+  description = "Chave de Licença do New Relic"
+  type        = string
+  sensitive   = true
+}
