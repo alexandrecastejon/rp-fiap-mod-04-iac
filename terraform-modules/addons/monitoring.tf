@@ -1,11 +1,11 @@
 resource "helm_release" "kube_prometheus_stack" {
-  depends_on = [helm_release.ingress_nginx]
-  name       = "kube-prometheus-stack"
-  repository = "https://prometheus-community.github.io/helm-charts"
-  chart      = "kube-prometheus-stack"
-  namespace  = "monitoring"
+  depends_on       = [helm_release.ingress_nginx]
+  name             = "kube-prometheus-stack"
+  repository       = "https://prometheus-community.github.io/helm-charts"
+  chart            = "kube-prometheus-stack"
+  namespace        = "monitoring"
   create_namespace = true
-  version    = "57.2.0"
+  version          = "57.2.0"
   values = [
     <<-EOT
     grafana:
@@ -44,13 +44,13 @@ resource "helm_release" "kube_prometheus_stack" {
 }
 
 resource "helm_release" "loki" {
-  depends_on = [helm_release.ingress_nginx]
-  name       = "loki"
-  repository = "https://grafana.github.io/helm-charts"
-  chart      = "loki-stack"
-  namespace  = "monitoring"
+  depends_on       = [helm_release.ingress_nginx]
+  name             = "loki"
+  repository       = "https://grafana.github.io/helm-charts"
+  chart            = "loki-stack"
+  namespace        = "monitoring"
   create_namespace = true
-  version    = "2.10.2"
+  version          = "2.10.2"
   values = [
     <<-EOT
     grafana:
@@ -64,13 +64,13 @@ resource "helm_release" "loki" {
 }
 
 resource "helm_release" "opentelemetry_collector" {
-  depends_on = [helm_release.ingress_nginx]
-  name       = "otel-collector"
-  repository = "https://open-telemetry.github.io/opentelemetry-helm-charts"
-  chart      = "opentelemetry-collector"
-  namespace  = "monitoring"
+  depends_on       = [helm_release.ingress_nginx]
+  name             = "otel-collector"
+  repository       = "https://open-telemetry.github.io/opentelemetry-helm-charts"
+  chart            = "opentelemetry-collector"
+  namespace        = "monitoring"
   create_namespace = true
-  version    = "0.87.1"
+  version          = "0.87.1"
   values = [
     <<-EOT
     mode: deployment
