@@ -13,13 +13,14 @@ resource "helm_release" "kube_prometheus_stack" {
         - name: Loki
           type: loki
           url: http://loki:3100
-          access: proxy      
+          access: proxy
       ingress:
         enabled: true
         ingressClassName: "nginx"
         annotations:
           cert-manager.io/cluster-issuer: "letsencrypt-prod"
           nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+          nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
         hosts:
           - "${var.eks_grafana_domain_name}"
         tls:
@@ -33,6 +34,7 @@ resource "helm_release" "kube_prometheus_stack" {
         annotations:
           cert-manager.io/cluster-issuer: "letsencrypt-prod"
           nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+          nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
         hosts:
           - "${var.eks_prometheus_domain_name}"
         tls:
@@ -91,8 +93,6 @@ resource "helm_release" "opentelemetry_collector" {
           endpoint: "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/api/v1/write"
           tls:
             insecure: true
-        loki:
-          endpoint: "http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push"
       service:
         pipelines:
           traces:
@@ -106,3 +106,6 @@ resource "helm_release" "opentelemetry_collector" {
     EOT
   ]
 }
+
+# Obter a senha - Gitbash
+# kubectl get secret grafana -n monitoring -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
