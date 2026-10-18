@@ -223,3 +223,39 @@ resource "aws_iam_role_policy" "github_app" {
     ]
   })
 }
+
+# Role do self-healing: assumida SOMENTE pelo workflow self-healing.yml
+# (environment SELF_HEALING do repositório de IaC). Na AWS só descreve o cluster;
+# no Kubernetes é mapeada para um grupo com RBAC restrito a rollout restart.
+resource "aws_iam_role" "github_selfheal" {
+  name                 = "gha-togglemaster-selfheal"
+  max_session_duration = 3600
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Federated = aws_iam_openid_connect_provider.github.arn }
+      Action    = "sts:AssumeRoleWithWebIdentity"
+      Condition = {
+        StringEquals = {
+          "${local.oidc_host}:aud" = "sts.amazonaws.com"
+          "${local.oidc_host}:sub" = "repo:${var.github_owner}/${var.iac_repo}:environment:SELF_HEALING"
+        }
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "github_selfheal" {
+  name = "togglemaster-selfheal"
+  role = aws_iam_role.github_selfheal.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid      = "DescribeCluster"
+      Effect   = "Allow"
+      Action   = "eks:DescribeCluster"
+      Resource = "arn:aws:eks:${var.aws_region}:${local.account_id}:cluster/*"
+    }]
+  })
+}

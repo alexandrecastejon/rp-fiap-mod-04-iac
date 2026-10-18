@@ -1,0 +1,32 @@
+# RBAC do self-healing: o grupo "togglemaster-selfheal" (mapeado pelo access
+# entry da role gha-togglemaster-selfheal) só pode consultar e reiniciar
+# Deployments e consultar pods no namespace das aplicações.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: self-healing-rollout-restart
+  namespace: eks-namespace
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: self-healing-rollout-restart
+  namespace: eks-namespace
+subjects:
+  - kind: Group
+    name: togglemaster-selfheal
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: self-healing-rollout-restart
+  apiGroup: rbac.authorization.k8s.io

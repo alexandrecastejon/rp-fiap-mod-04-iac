@@ -2,9 +2,10 @@ data "aws_caller_identity" "current" {}
 
 locals {
   # Roles criadas pelo stack bootstrap/ (OIDC do GitHub Actions)
-  iac_role_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/gha-togglemaster-iac"
-  app_role_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/gha-togglemaster-app"
-  admin_arns   = [for u in var.admin_user_names : "arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/${u}"]
+  iac_role_arn      = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/gha-togglemaster-iac"
+  app_role_arn      = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/gha-togglemaster-app"
+  selfheal_role_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/gha-togglemaster-selfheal"
+  admin_arns        = [for u in var.admin_user_names : "arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/${u}"]
 }
 
 module "network" {
@@ -25,6 +26,7 @@ module "eks_cluster" {
   subnet_ids         = [module.network.private_subnet_idA, module.network.private_subnet_idB]
   cluster_admin_arns = concat(local.admin_arns, [local.iac_role_arn])
   app_deployer_arn   = local.app_role_arn
+  selfheal_role_arn  = local.selfheal_role_arn
 }
 
 module "ecr_repos" {

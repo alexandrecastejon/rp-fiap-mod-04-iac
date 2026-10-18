@@ -1,0 +1,96 @@
+name: FIAP - MODULO 04 - DATADOG (MONITORES E INTEGRAÇÕES)
+
+# Monitores, webhook de self-healing e integrações (PagerDuty/Slack) como código.
+# Independe do cluster: pode ser aplicado antes da infraestrutura e sobrevive ao destroy.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Ação a executar'
+        type: choice
+        options:
+          - apply
+          - destroy
+        default: apply
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: terraform-datadog
+  cancel-in-progress: false
+
+env:
+  TF_VERSION: '1.15.4'
+  TF_WORKING_DIR: 'terraform-modules/datadog'
+
+jobs:
+  datadog:
+    name: 'DATADOG - TERRAFORM - ${{ inputs.action }}'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.action == 'destroy' && 'DESTROY_APPROVAL' || 'APPLY_APPROVAL' }}
+    env:
+      # Segredos entram como TF_VAR_* (nunca na linha de comando)
+      TF_VAR_datadog_api_key: ${{ secrets.DATADOG_API_KEY }}
+      TF_VAR_datadog_app_key: ${{ secrets.DATADOG_APP_KEY }}
+      TF_VAR_datadog_site: ${{ vars.DATADOG_SITE || 'us5.datadoghq.com' }}
+      TF_VAR_pagerduty_integration_key: ${{ secrets.PAGERDUTY_INTEGRATION_KEY }}
+      TF_VAR_github_selfheal_token: ${{ secrets.GH_SELFHEAL_TOKEN }}
+      TF_VAR_slack_account_name: ${{ vars.SLACK_ACCOUNT_NAME }}
+    defaults:
+      run:
+        working-directory: ${{ env.TF_WORKING_DIR }}
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # Só para o backend S3 do state
+      - name: AWS Credentials - Configure (OIDC)
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          role-to-assume: ${{ vars.AWS_IAC_ROLE_ARN }}
+          role-session-name: gha-datadog-${{ github.run_id }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Terraform - Setup
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform - Init
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ vars.AWS_BUCKET_NAME }}" \
+            -backend-config="key=datadog/terraform.tfstate" \
+            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="encrypt=true" \
+            -backend-config="use_lockfile=true"
+
+      - name: Terraform - Validate
+        run: |
+          terraform fmt -check -recursive
+          terraform validate
+
+      - name: Terraform - Plan
+        if: inputs.action == 'apply'
+        # O plan também valida as queries dos monitores na API do Datadog
+        run: terraform plan -input=false -out=tfplan
+
+      - name: Terraform - Apply
+        if: inputs.action == 'apply'
+        run: terraform apply -input=false tfplan
+
+      - name: Terraform - Destroy
+        if: inputs.action == 'destroy'
+        run: terraform destroy -auto-approve -input=false
+
+      - name: Evidence - Job Summary
+        if: inputs.action == 'apply'
+        run: |
+          {
+            echo "## 🐶 Datadog — monitores e integrações"
+            echo ""
+            echo "- Monitor: $(terraform output -raw monitor_url)"
+            echo "- Self-healing: $(terraform output -raw webhook_name)"
+          } >> "$GITHUB_STEP_SUMMARY"

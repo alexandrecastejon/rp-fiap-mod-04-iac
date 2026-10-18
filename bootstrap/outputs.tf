@@ -12,3 +12,8 @@ output "app_role_arn" {
   description = "Cadastrar como variable AWS_APP_ROLE_ARN no repositório de aplicações"
   value       = aws_iam_role.github_app.arn
 }
+
+output "selfheal_role_arn" {
+  description = "Cadastrar como variable AWS_SELFHEAL_ROLE_ARN no repositório de IaC"
+  value       = aws_iam_role.github_selfheal.arn
+}

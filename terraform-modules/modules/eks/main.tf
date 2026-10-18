@@ -167,6 +167,19 @@ resource "aws_eks_access_policy_association" "app_deployer" {
   }
 }
 
+# ==========================================
+# 3. SELF-HEALING
+#    Sem access policy da AWS: a role vira o grupo Kubernetes abaixo, cujas
+#    permissões vêm de uma Role RBAC (eks-templates/rbac-self-healing.yml)
+#    que só permite reiniciar Deployments no namespace das aplicações
+# ==========================================
+resource "aws_eks_access_entry" "selfheal" {
+  cluster_name      = aws_eks_cluster.main.name
+  principal_arn     = var.selfheal_role_arn
+  kubernetes_groups = ["togglemaster-selfheal"]
+  type              = "STANDARD"
+}
+
 # Coleta o certificado do OIDC do EKS para criar o provedor de identidade
 data "tls_certificate" "eks" {
   url = aws_eks_cluster.main.identity[0].oidc[0].issuer

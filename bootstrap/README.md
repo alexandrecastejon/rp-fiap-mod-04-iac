@@ -8,6 +8,7 @@ Cria a base de confiança que os pipelines precisam **antes** de existirem:
 | Provedor OIDC `token.actions.githubusercontent.com` | GitHub Actions obtém credenciais AWS temporárias, sem access keys |
 | Role `gha-togglemaster-iac` | Assumida só pela `main` e pelos environments com aprovação do repositório de IaC |
 | Role `gha-togglemaster-app` | Menor privilégio: push nos 5 ECRs + leitura dos endpoints usados no deploy |
+| Role `gha-togglemaster-selfheal` | Só o workflow de self-healing (environment `SELF_HEALING`); na AWS só `eks:DescribeCluster`, no Kubernetes só `rollout restart` (RBAC) |
 
 O state deste stack fica **local** (ignorado pelo git), pois é ele que cria o bucket de state.
 
@@ -39,8 +40,14 @@ terraform output
 | Variable | `DATADOG_SITE` | site da organização Datadog (`datadoghq.com` = US1, `us5.datadoghq.com` = US5) |
 | Secret | `DB_USER` / `DB_PASS` | credenciais dos RDS |
 | Secret | `DATADOG_API_KEY` | API key dedicada ao projeto |
+| Secret | `DATADOG_APP_KEY` | Application key usada pelo Terraform do Datadog (monitores/integrações) |
+| Secret | `PAGERDUTY_INTEGRATION_KEY` | Integration key do serviço `togglemaster-auth-service` no PagerDuty |
+| Secret | `GH_SELFHEAL_TOKEN` | Fine-grained token **só com Actions: write neste repositório**, usado pelo webhook do Datadog |
+| Variable | `AWS_SELFHEAL_ROLE_ARN` | output `selfheal_role_arn` |
+| Variable | `SLACK_ACCOUNT_NAME` | nome da conta Slack conectada no tile do Datadog (vazio = sem Slack) |
 | Secret | `GRAFANA_ADMIN_PASSWORD` | senha do admin do Grafana (gerada aleatoriamente; ver no Secret `grafana-admin` do namespace `monitoring`) |
 | Environment | `APPLY_APPROVAL` / `DESTROY_APPROVAL` | **com required reviewers** (aprovação manual) |
+| Environment | `SELF_HEALING` | **sem** reviewers (a automação age sozinha), restrito à branch `main` |
 
 ### Repositório `rp-fiap-mod-04-app`
 
