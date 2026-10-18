@@ -1,0 +1,65 @@
+# Loki 3 em modo SingleBinary: centraliza os logs de todos os contêineres.
+# Recebe logs via OTLP (endpoint /otlp) a partir do OTel Collector.
+deploymentMode: SingleBinary
+
+loki:
+  auth_enabled: false
+  commonConfig:
+    replication_factor: 1
+  storage:
+    type: filesystem
+  schemaConfig:
+    configs:
+      - from: "2024-04-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: loki_index_
+          period: 24h
+  limits_config:
+    allow_structured_metadata: true
+    volume_enabled: true
+    retention_period: 72h
+  pattern_ingester:
+    enabled: true
+
+singleBinary:
+  replicas: 1
+  # Ambiente de demonstração: sem volume persistente (o EKS não tem o driver EBS CSI)
+  persistence:
+    enabled: false
+  # Sem PVC o chart não monta /var/loki e o rootfs é somente leitura: usa emptyDir
+  extraVolumes:
+    - name: data
+      emptyDir: {}
+  extraVolumeMounts:
+    - name: data
+      mountPath: /var/loki
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
+# Modo SingleBinary: os componentes distribuídos ficam zerados
+read:
+  replicas: 0
+write:
+  replicas: 0
+backend:
+  replicas: 0
+
+gateway:
+  enabled: false
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false
+lokiCanary:
+  enabled: false
+test:
+  enabled: false
+minio:
+  enabled: false

@@ -133,10 +133,23 @@ jobs:
           echo "##[section]Connecting to the EKS Cluster..."
           aws eks update-kubeconfig --region ${{ vars.AWS_REGION }} --name ${{ env.EKS_CLUSTER_NAME }}
 
-      - name: EKS Cluster - Application Namespace
+      - name: EKS Cluster - Namespaces and Secrets
+        env:
+          DD_API_KEY: ${{ secrets.DATADOG_API_KEY }}
+          DD_SITE: ${{ vars.DATADOG_SITE || 'datadoghq.com' }}
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
         run: |
           # O pipeline das aplicações só tem acesso ao namespace, então ele é criado aqui
           kubectl create namespace ${{ env.APP_NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
+
+          # Segredos da stack de observabilidade (GitOps): GitHub Secrets -> Secrets do Kubernetes
+          kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret generic datadog -n monitoring \
+            --from-literal=api-key="$DD_API_KEY" --from-literal=site="$DD_SITE" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret generic grafana-admin -n monitoring \
+            --from-literal=admin-user=admin --from-literal=admin-password="$GRAFANA_ADMIN_PASSWORD" \
+            --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Terraform - Init - Addons
         working-directory: ${{ env.TF_WORKING_DIR }}/addons
@@ -177,10 +190,7 @@ jobs:
             -var="aws_bucket_iac_folder_name=${{ vars.AWS_BUCKET_IAC_FOLDER_NAME }}" \
             -var="eks_cluster_name=${{ env.EKS_CLUSTER_NAME }}" \
             -var="eks_argocd_domain_name=${{ vars.ARGOCD_DOMAIN_NAME }}" \
-            -var="eks_grafana_domain_name=${{ vars.GRAFANA_DOMAIN_NAME }}" \
-            -var="eks_prometheus_domain_name=${{ vars.PROMETHEUS_DOMAIN_NAME }}" \
-            -var="datadog_site=${{ vars.DATADOG_SITE || 'datadoghq.com' }}" \
-            -var="datadog_api_key=${{ secrets.DATADOG_API_KEY }}"
+            -var="eks_grafana_domain_name=${{ vars.GRAFANA_DOMAIN_NAME }}"
 
       - name: Terraform - Apply - Addons
         working-directory: ${{ env.TF_WORKING_DIR }}/addons
@@ -275,7 +285,7 @@ jobs:
           echo "##[section]New NLB Detected: $NLB_DNS"
 
           CHANGES=""
-          for HOST in "${{ vars.APIS_DOMAIN_NAME }}" "${{ vars.ARGOCD_DOMAIN_NAME }}" "${{ vars.GRAFANA_DOMAIN_NAME }}" "${{ vars.PROMETHEUS_DOMAIN_NAME }}"; do
+          for HOST in "${{ vars.APIS_DOMAIN_NAME }}" "${{ vars.ARGOCD_DOMAIN_NAME }}" "${{ vars.GRAFANA_DOMAIN_NAME }}"; do
             CHANGES="$CHANGES{\"Action\":\"UPSERT\",\"ResourceRecordSet\":{\"Name\":\"$HOST\",\"Type\":\"CNAME\",\"TTL\":60,\"ResourceRecords\":[{\"Value\":\"$NLB_DNS\"}]}},"
           done
           echo "{\"Comment\":\"Automatic NLB update via GitHub Actions\",\"Changes\":[${CHANGES%,}]}" > route53-update.json
@@ -303,6 +313,25 @@ jobs:
         uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
         with:
           terraform_version: ${{ env.TF_VERSION }}
+
+      - name: EKS Cluster - Setup
+        uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4.0.1
+
+      - name: Load Balancer - Remove Before Destroy
+        run: |
+          # O NLB é criado pelo Kubernetes (Service do ingress-nginx), não pelo Terraform.
+          # Removê-lo antes evita LB órfão cobrando e a VPC presa por ENIs.
+          if aws eks update-kubeconfig --region ${{ vars.AWS_REGION }} --name ${{ env.EKS_CLUSTER_NAME }}; then
+            kubectl delete svc ingress-nginx-controller -n ${{ env.INGRESS_NAMESPACE }} --ignore-not-found --wait=true --timeout=300s || true
+            for i in $(seq 1 30); do
+              TAGGED=$(aws resourcegroupstaggingapi get-resources --resource-type-filters elasticloadbalancing:loadbalancer \
+                --tag-filters Key=kubernetes.io/cluster/${{ env.EKS_CLUSTER_NAME }} --query "length(ResourceTagMappingList)" --output text)
+              [ "$TAGGED" = "0" ] && { echo "Nenhum load balancer do cluster restante"; break; }
+              echo "Aguardando remoção de $TAGGED load balancer(s)..."; sleep 10
+            done
+          else
+            echo "Cluster não encontrado; nada a remover"
+          fi
 
       - name: Terraform - Init - Addons
         working-directory: ${{ env.TF_WORKING_DIR }}/addons
@@ -333,10 +362,7 @@ jobs:
             -var="aws_bucket_iac_folder_name=${{ vars.AWS_BUCKET_IAC_FOLDER_NAME }}" \
             -var="eks_cluster_name=${{ env.EKS_CLUSTER_NAME }}" \
             -var="eks_argocd_domain_name=${{ vars.ARGOCD_DOMAIN_NAME }}" \
-            -var="eks_grafana_domain_name=${{ vars.GRAFANA_DOMAIN_NAME }}" \
-            -var="eks_prometheus_domain_name=${{ vars.PROMETHEUS_DOMAIN_NAME }}" \
-            -var="datadog_site=${{ vars.DATADOG_SITE || 'datadoghq.com' }}" \
-            -var="datadog_api_key=${{ secrets.DATADOG_API_KEY }}"
+            -var="eks_grafana_domain_name=${{ vars.GRAFANA_DOMAIN_NAME }}"
 
       - name: Terraform - Init - Infrastructure
         working-directory: ${{ env.TF_WORKING_DIR }}

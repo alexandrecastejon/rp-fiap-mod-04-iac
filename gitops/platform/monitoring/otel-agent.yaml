@@ -1,0 +1,67 @@
+# OTel Collector "agent" (DaemonSet): lê os logs de todos os contêineres do
+# nó (/var/log/pods), enriquece com metadados do Kubernetes e envia ao Loki.
+# Substitui o promtail (descontinuado).
+mode: daemonset
+
+image:
+  repository: otel/opentelemetry-collector-contrib
+
+presets:
+  logsCollection:
+    enabled: true
+    includeCollectorLogs: false
+  kubernetesAttributes:
+    enabled: true
+
+# O agent não recebe telemetria pela rede: nenhuma porta exposta
+ports:
+  otlp:
+    enabled: false
+  otlp-http:
+    enabled: false
+  jaeger-compact:
+    enabled: false
+  jaeger-thrift:
+    enabled: false
+  jaeger-grpc:
+    enabled: false
+  zipkin:
+    enabled: false
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    memory: 256Mi
+
+alternateConfig:
+  extensions:
+    health_check:
+      endpoint: ${env:MY_POD_IP}:13133
+
+  processors:
+    memory_limiter:
+      check_interval: 5s
+      limit_percentage: 80
+      spike_limit_percentage: 25
+    batch: {}
+    resource/env:
+      attributes:
+        - key: deployment.environment.name
+          value: fiap-fase4
+          action: upsert
+
+  exporters:
+    otlphttp/loki:
+      endpoint: http://loki.monitoring.svc.cluster.local:3100/otlp
+
+  service:
+    extensions:
+      - health_check
+    pipelines:
+      # O preset logsCollection adiciona o receiver de arquivos a este pipeline
+      logs:
+        receivers: []
+        processors: [memory_limiter, resource/env, batch]
+        exporters: [otlphttp/loki]
