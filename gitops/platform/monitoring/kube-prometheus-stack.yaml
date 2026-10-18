@@ -1,0 +1,67 @@
+# kube-prometheus-stack: Prometheus (métricas) + Grafana (visualização)
+# Valores dependentes de ambiente (domínio do Grafana) são injetados pela
+# Application do ArgoCD declarada em terraform-modules/addons/argocd-apps.tf.
+
+# Os alertas do projeto nascem no Datadog; o Alertmanager não é usado
+alertmanager:
+  enabled: false
+
+defaultRules:
+  create: false
+
+prometheus:
+  prometheusSpec:
+    # Recebe as métricas geradas pelo OTel Collector (spanmetrics)
+    enableRemoteWriteReceiver: true
+    retention: 24h
+    # Descobre ServiceMonitors/PodMonitors de qualquer release, não só deste chart
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        memory: 1536Mi
+  # Prometheus não é exposto publicamente: é consultado pelo Grafana
+
+grafana:
+  # Senha do admin vem de Secret criado pelo pipeline (GitHub Secret GRAFANA_ADMIN_PASSWORD)
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+  defaultDashboardsTimezone: America/Sao_Paulo
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      searchNamespace: ALL
+  additionalDataSources:
+    - name: Loki
+      uid: loki
+      type: loki
+      url: http://loki.monitoring.svc.cluster.local:3100
+      access: proxy
+  grafana.ini:
+    users:
+      allow_sign_up: false
+    auth.anonymous:
+      enabled: false
+    security:
+      cookie_secure: true
+      disable_gravatar: true
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/backend-protocol: HTTP
+  resources:
+    requests:
+      cpu: 50m
+      memory: 192Mi
+    limits:
+      memory: 512Mi

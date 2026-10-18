@@ -34,11 +34,12 @@ terraform output
 | Variable | `AWS_BUCKET_IAC_FOLDER_NAME` | ex.: `iac/terraform.tfstate` |
 | Variable | `AWS_BUCKET_ADDONS_FOLDER_NAME` | ex.: `addons/terraform.tfstate` |
 | Variable | `HOSTED_ZONE_ID` | ID da hosted zone do domínio no Route53 |
-| Variable | `APIS_DOMAIN_NAME` / `ARGOCD_DOMAIN_NAME` / `GRAFANA_DOMAIN_NAME` / `PROMETHEUS_DOMAIN_NAME` | subdomínios do domínio registrado |
+| Variable | `APIS_DOMAIN_NAME` / `ARGOCD_DOMAIN_NAME` / `GRAFANA_DOMAIN_NAME` | subdomínios do domínio registrado (o Prometheus não é exposto) |
 | Secret | `LETSENCRYPT_EMAIL` | e-mail para avisos de expiração dos certificados (secret para não aparecer nos logs públicos) |
-| Variable | `DATADOG_SITE` | opcional, padrão `datadoghq.com` |
+| Variable | `DATADOG_SITE` | site da organização Datadog (`datadoghq.com` = US1, `us5.datadoghq.com` = US5) |
 | Secret | `DB_USER` / `DB_PASS` | credenciais dos RDS |
 | Secret | `DATADOG_API_KEY` | API key dedicada ao projeto |
+| Secret | `GRAFANA_ADMIN_PASSWORD` | senha do admin do Grafana (gerada aleatoriamente; ver no Secret `grafana-admin` do namespace `monitoring`) |
 | Environment | `APPLY_APPROVAL` / `DESTROY_APPROVAL` | **com required reviewers** (aprovação manual) |
 
 ### Repositório `rp-fiap-mod-04-app`
