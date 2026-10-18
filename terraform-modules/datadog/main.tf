@@ -10,6 +10,22 @@ locals {
 }
 
 # ------------------------------------------------------------------
+# Objetos criados ao conectar as integrações pelo console do Datadog são
+# adotados pelo código (import), em vez de duplicados. Após a primeira
+# importação estes blocos não têm efeito.
+# ------------------------------------------------------------------
+import {
+  to = datadog_integration_pagerduty_service_object.togglemaster
+  id = var.pagerduty_service_name
+}
+
+import {
+  for_each = var.slack_account_name == "" ? toset([]) : toset(["alertas"])
+  to       = datadog_integration_slack_channel.alertas[0]
+  id       = "${var.slack_account_name}:#${var.slack_channel}"
+}
+
+# ------------------------------------------------------------------
 # PagerDuty: serviço que recebe os incidentes (integração já instalada no tile)
 # ------------------------------------------------------------------
 resource "datadog_integration_pagerduty_service_object" "togglemaster" {
