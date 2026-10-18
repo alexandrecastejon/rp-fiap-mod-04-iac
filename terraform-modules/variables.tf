@@ -3,16 +3,16 @@ variable "aws_region" {
   type        = string
 }
 
-variable "admin_ip" {
-  description = "Seu IP pessoal para liberar no Security Group (ex: 203.0.113.10/32)"
-  type        = string
-  default     = "187.34.30.192/32"
+variable "admin_user_names" {
+  description = "Usuários IAM da conta que recebem acesso de administrador ao cluster EKS"
+  type        = list(string)
+  default     = ["alexandrecastejon"]
 }
 
 variable "allow_ips" {
-  description = "Lista de IPs com permissão para acessar a API do Kubernetes"
+  description = "CIDRs com acesso ao endpoint público da API do Kubernetes (runners hospedados do GitHub exigem 0.0.0.0/0)"
   type        = list(string)
-  default     = ["187.34.30.192/32", "152.249.91.163/32", "152.249.91.164/32"]
+  default     = ["0.0.0.0/0"]
 }
 
 variable "eks_cluster_name" {

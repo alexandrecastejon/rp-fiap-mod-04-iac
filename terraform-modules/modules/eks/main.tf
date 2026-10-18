@@ -4,8 +4,8 @@ resource "aws_iam_role" "cluster_role" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
       Principal = { Service = "eks.amazonaws.com" }
     }]
   })
@@ -25,10 +25,14 @@ resource "aws_eks_cluster" "main" {
     subnet_ids              = var.subnet_ids
     endpoint_private_access = true
     endpoint_public_access  = true
-    public_access_cidrs     = ["0.0.0.0/0"] ##var.allowed_ips
+    # Os runners hospedados do GitHub usam IPs dinâmicos, por isso o padrão é 0.0.0.0/0.
+    # A API continua exigindo autenticação IAM + access entry; restrinja se usar runner próprio.
+    public_access_cidrs = var.allowed_ips
   }
-access_config {
+  access_config {
     authentication_mode = "API_AND_CONFIG_MAP"
+    # Sem admin implícito para quem cria o cluster: todo acesso é declarado abaixo
+    bootstrap_cluster_creator_admin_permissions = false
   }
   depends_on = [aws_iam_role_policy_attachment.cluster_policy]
 }
@@ -39,8 +43,8 @@ resource "aws_iam_role" "node_role" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
       Principal = { Service = "ec2.amazonaws.com" }
     }]
   })
@@ -123,42 +127,43 @@ resource "aws_eks_addon" "vpc_cni" {
 }
 
 # ==========================================
-# 1. ACESSO PARA O GITHUB ACTIONS
+# 1. ADMINISTRADORES DO CLUSTER
+#    (usuário admin + pipeline de IaC, que instala os add-ons)
 # ==========================================
-
-# Permissões para o pipeline do GitHub Actions acessar o cluster EKS
-resource "aws_eks_access_entry" "github_pipeline" {
+resource "aws_eks_access_entry" "cluster_admin" {
+  for_each      = toset(var.cluster_admin_arns)
   cluster_name  = aws_eks_cluster.main.name
-  principal_arn = "arn:aws:iam::162521700965:user/svc-github-actions"
+  principal_arn = each.value
   type          = "STANDARD"
 }
 
-resource "aws_eks_access_policy_association" "github_pipeline_access_admin" {
+resource "aws_eks_access_policy_association" "cluster_admin" {
+  for_each      = aws_eks_access_entry.cluster_admin
   cluster_name  = aws_eks_cluster.main.name
   policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
-  principal_arn = aws_eks_access_entry.github_pipeline.principal_arn
+  principal_arn = each.value.principal_arn
   access_scope {
     type = "cluster"
   }
 }
 
 # ==========================================
-# 2. ACESSO PARA O SEU USUÁRIO (logjeferson)
+# 2. PIPELINE DAS APLICAÇÕES
+#    Menor privilégio: admin apenas no namespace das aplicações
 # ==========================================
-
-# Permissões para meu usuário local acessar o cluster EKS
-resource "aws_eks_access_entry" "my_access" {
+resource "aws_eks_access_entry" "app_deployer" {
   cluster_name  = aws_eks_cluster.main.name
-  principal_arn = "arn:aws:iam::162521700965:user/logjeferson"
+  principal_arn = var.app_deployer_arn
   type          = "STANDARD"
 }
 
-resource "aws_eks_access_policy_association" "my_access_admin" {
+resource "aws_eks_access_policy_association" "app_deployer" {
   cluster_name  = aws_eks_cluster.main.name
-  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
-  principal_arn = aws_eks_access_entry.my_access.principal_arn
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSAdminPolicy"
+  principal_arn = aws_eks_access_entry.app_deployer.principal_arn
   access_scope {
-    type = "cluster"
+    type       = "namespace"
+    namespaces = [var.app_namespace]
   }
 }
 

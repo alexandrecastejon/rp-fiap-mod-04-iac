@@ -33,8 +33,26 @@ variable "eks_prometheus_domain_name" {
   type        = string
 }
 
-variable "new_relic_license_key" {
-  description = "Chave de Licença do New Relic"
+variable "app_repo_url" {
+  description = "Repositório GitOps monitorado pelo ArgoCD"
+  type        = string
+  default     = "https://github.com/alexandrecastejon/rp-fiap-mod-04-app.git"
+}
+
+variable "app_namespace" {
+  description = "Namespace onde as aplicações são implantadas"
+  type        = string
+  default     = "eks-namespace"
+}
+
+variable "datadog_api_key" {
+  description = "API Key do Datadog usada pelo exporter do OTel Collector"
   type        = string
   sensitive   = true
+}
+
+variable "datadog_site" {
+  description = "Site/região da conta Datadog (ex: datadoghq.com, us5.datadoghq.com, datadoghq.eu)"
+  type        = string
+  default     = "datadoghq.com"
 }

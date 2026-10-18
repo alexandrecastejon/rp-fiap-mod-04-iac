@@ -86,11 +86,11 @@ metadata:
 spec:
   tls:
     - hosts:
-      - "apis.mysandbox.com.br"
+      - "#{apis_domain}#"
       secretName: apis-tls-cert
   ingressClassName: nginx
   rules:
-    - host: "apis.mysandbox.com.br"
+    - host: "#{apis_domain}#"
       http:
         paths:
           # --- ROTA DO HOMEPAGE SERVICE ---

@@ -17,8 +17,8 @@ resource "aws_iam_policy" "sqs_shared_policy" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect   = "Allow"
-      Action   = [
+      Effect = "Allow"
+      Action = [
         "sqs:SendMessage",
         "sqs:ReceiveMessage",
         "sqs:DeleteMessage",
@@ -34,7 +34,7 @@ resource "aws_iam_policy" "sqs_shared_policy" {
 resource "aws_iam_policy" "sqs_keda_policy" {
   name        = "keda-sqs-policy"
   description = "Permite ao KEDA ler o tamanho das filas SQS para autoescala"
-  policy      = jsonencode({
+  policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Effect   = "Allow"
@@ -55,7 +55,7 @@ data "aws_iam_policy_document" "evaluation_assume_role" {
       values   = ["system:serviceaccount:eks-namespace:evaluation-sa"]
     }
     principals {
-      identifiers = [var.eks_oidc_provider_arn] 
+      identifiers = [var.eks_oidc_provider_arn]
       type        = "Federated"
     }
   }
@@ -69,13 +69,13 @@ data "aws_iam_policy_document" "keda_assume_role" {
     condition {
       test     = "StringEquals"
       variable = "${replace(var.eks_oidc_issuer_url, "https://", "")}:sub"
-      values   = [
+      values = [
         "system:serviceaccount:keda:keda-operator",
         "system:serviceaccount:keda:keda-metrics-apiserver"
       ]
     }
     principals {
-      identifiers = [var.eks_oidc_provider_arn] 
+      identifiers = [var.eks_oidc_provider_arn]
       type        = "Federated"
     }
   }
@@ -95,11 +95,11 @@ resource "aws_iam_role" "keda_role" {
 # Anexa a permissão do SQS na Role do Evaluation
 resource "aws_iam_role_policy_attachment" "evaluation_sqs_attach" {
   role       = aws_iam_role.evaluation_role.name
-  policy_arn = aws_iam_policy.sqs_shared_policy.arn 
+  policy_arn = aws_iam_policy.sqs_shared_policy.arn
 }
 
 # Anexa a permissão do SQS na Role do KEDA
 resource "aws_iam_role_policy_attachment" "keda_sqs_attach" {
   role       = aws_iam_role.keda_role.name
-  policy_arn = aws_iam_policy.sqs_keda_policy.arn 
+  policy_arn = aws_iam_policy.sqs_keda_policy.arn
 }

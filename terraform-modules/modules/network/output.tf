@@ -10,7 +10,7 @@ output "vpc_cidr" {
 
 output "elastic_ip" {
   description = "Exporta o Elastic IP do NAT Gateway"
-  value       = aws_eip.nat_eip.public_ip 
+  value       = aws_eip.nat_eip.public_ip
 }
 
 output "private_subnet_NameA" {

@@ -19,8 +19,3 @@ variable "nsg_rds_name" {
   type        = string
   default     = "nsg-rds-01"
 }
-
-variable "my_ip" {
-  description = "IP do administrador para liberar a porta 22 (SSH) e 8080 (custom)"
-  type        = string
-}

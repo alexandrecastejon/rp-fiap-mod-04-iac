@@ -13,6 +13,22 @@ variable "allowed_ips" {
   type        = list(string)
 }
 
+variable "cluster_admin_arns" {
+  description = "ARNs IAM (usuários/roles) com acesso de administrador ao cluster"
+  type        = list(string)
+}
+
+variable "app_deployer_arn" {
+  description = "ARN da role do pipeline das aplicações (acesso restrito ao namespace)"
+  type        = string
+}
+
+variable "app_namespace" {
+  description = "Namespace onde as aplicações são implantadas"
+  type        = string
+  default     = "eks-namespace"
+}
+
 variable "node_instance_type" {
   description = "Tamanho das máquinas do EKS"
   type        = string

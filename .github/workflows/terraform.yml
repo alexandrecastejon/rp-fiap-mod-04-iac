@@ -2,34 +2,50 @@ name: FIAP - MODULO 04 - IAC-ADDONS
 
 on:
   workflow_dispatch:
+    inputs:
+      action:
+        description: 'Ação a executar'
+        type: choice
+        options:
+          - apply
+          - destroy
+        default: apply
+
+# Credenciais AWS via OIDC (token efêmero) - nenhuma access key estática
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: terraform-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   TF_VERSION: '1.15.4'
   TF_WORKING_DIR: 'terraform-modules'
   EKS_CLUSTER_NAME: 'eks-cluster-01'
+  APP_NAMESPACE: 'eks-namespace'
+  INGRESS_NAMESPACE: 'ingress-nginx'
 
 jobs:
   infrastructure:
     name: 'AWS - TERRAFORM - INFRASTRUCTURE'
+    if: inputs.action == 'apply'
     runs-on: ubuntu-latest
     environment: 'APPLY_APPROVAL'
-    permissions:
-      id-token: write
-      contents: read
-
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - name: AWS Credentials - Configure
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: AWS Credentials - Configure (OIDC)
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ vars.AWS_IAC_ROLE_ARN }}
+          role-session-name: gha-iac-${{ github.run_id }}
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Terraform - Setup
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
@@ -43,7 +59,10 @@ jobs:
           echo "##[section]Initializing Terraform..."
           terraform init \
             -backend-config="bucket=${{ vars.AWS_BUCKET_NAME }}" \
-            -backend-config="key=${{ vars.AWS_BUCKET_IAC_FOLDER_NAME }}"
+            -backend-config="key=${{ vars.AWS_BUCKET_IAC_FOLDER_NAME }}" \
+            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="encrypt=true" \
+            -backend-config="use_lockfile=true"
 
       - name: Terraform - Validate - Infrastructure
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -51,6 +70,9 @@ jobs:
           echo "============== Terraform - Validate =============="
           echo "Date/Time: $(date '+%Y-%m-%d %H:%M:%S')"
           echo "--------------------------------------------------"
+
+          echo "##[section]Checking the format..."
+          terraform fmt -check -recursive
 
           echo "##[section]Validating the Infrastructure..."
           terraform validate
@@ -63,7 +85,7 @@ jobs:
           echo "--------------------------------------------------"
 
           echo "##[section]Planning the Infrastructure..."
-          terraform plan \
+          terraform plan -input=false -out=tfplan \
             -var="aws_region=${{ vars.AWS_REGION }}" \
             -var="eks_cluster_name=${{ env.EKS_CLUSTER_NAME }}" \
             -var="db_user=${{ secrets.DB_USER }}" \
@@ -76,40 +98,31 @@ jobs:
           echo "Date/Time: $(date '+%Y-%m-%d %H:%M:%S')"
           echo "--------------------------------------------------"
 
-          echo "##[section]Applying the Infrastructure..."
-          terraform apply -auto-approve \
-            -var="aws_region=${{ vars.AWS_REGION }}" \
-            -var="eks_cluster_name=${{ env.EKS_CLUSTER_NAME }}" \
-            -var="db_user=${{ secrets.DB_USER }}" \
-            -var="db_pass=${{ secrets.DB_PASS }}"
+          echo "##[section]Applying the planned Infrastructure..."
+          terraform apply -input=false tfplan
 
   addons:
     name: 'AWS - TERRAFORM - ADDONS'
     needs: infrastructure
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - name: AWS Credentials - Configure
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: AWS Credentials - Configure (OIDC)
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ vars.AWS_IAC_ROLE_ARN }}
+          role-session-name: gha-addons-${{ github.run_id }}
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Terraform - Setup
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: EKS Cluster - Setup
-        uses: azure/setup-kubectl@v3
-        with:
-          version: 'latest'
+        uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4.0.1
 
       - name: EKS Cluster - Connect
         run: |
@@ -119,6 +132,11 @@ jobs:
 
           echo "##[section]Connecting to the EKS Cluster..."
           aws eks update-kubeconfig --region ${{ vars.AWS_REGION }} --name ${{ env.EKS_CLUSTER_NAME }}
+
+      - name: EKS Cluster - Application Namespace
+        run: |
+          # O pipeline das aplicações só tem acesso ao namespace, então ele é criado aqui
+          kubectl create namespace ${{ env.APP_NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Terraform - Init - Addons
         working-directory: ${{ env.TF_WORKING_DIR }}/addons
@@ -130,7 +148,10 @@ jobs:
           echo "##[section]Initializing Terraform..."
           terraform init \
             -backend-config="bucket=${{ vars.AWS_BUCKET_NAME }}" \
-            -backend-config="key=${{ vars.AWS_BUCKET_ADDONS_FOLDER_NAME}}"
+            -backend-config="key=${{ vars.AWS_BUCKET_ADDONS_FOLDER_NAME }}" \
+            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="encrypt=true" \
+            -backend-config="use_lockfile=true"
 
       - name: Terraform - Validate - Addons
         working-directory: ${{ env.TF_WORKING_DIR }}/addons
@@ -150,7 +171,7 @@ jobs:
           echo "--------------------------------------------------"
 
           echo "##[section]Planning the Addons..."
-          terraform plan \
+          terraform plan -input=false -out=tfplan \
             -var="aws_region=${{ vars.AWS_REGION }}" \
             -var="aws_bucket_iac_name=${{ vars.AWS_BUCKET_NAME }}" \
             -var="aws_bucket_iac_folder_name=${{ vars.AWS_BUCKET_IAC_FOLDER_NAME }}" \
@@ -158,7 +179,8 @@ jobs:
             -var="eks_argocd_domain_name=${{ vars.ARGOCD_DOMAIN_NAME }}" \
             -var="eks_grafana_domain_name=${{ vars.GRAFANA_DOMAIN_NAME }}" \
             -var="eks_prometheus_domain_name=${{ vars.PROMETHEUS_DOMAIN_NAME }}" \
-            -var="new_relic_license_key=${{ secrets.NEW_RELIC_LICENSE_KEY }}"
+            -var="datadog_site=${{ vars.DATADOG_SITE || 'datadoghq.com' }}" \
+            -var="datadog_api_key=${{ secrets.DATADOG_API_KEY }}"
 
       - name: Terraform - Apply - Addons
         working-directory: ${{ env.TF_WORKING_DIR }}/addons
@@ -167,40 +189,28 @@ jobs:
           echo "Date/Time: $(date '+%Y-%m-%d %H:%M:%S')"
           echo "--------------------------------------------------"
 
-          echo "##[section]Applying the Addons..."
-          terraform apply -auto-approve \
-            -var="aws_region=${{ vars.AWS_REGION }}" \
-            -var="aws_bucket_iac_name=${{ vars.AWS_BUCKET_NAME }}" \
-            -var="aws_bucket_iac_folder_name=${{ vars.AWS_BUCKET_IAC_FOLDER_NAME }}" \
-            -var="eks_cluster_name=${{ env.EKS_CLUSTER_NAME }}" \
-            -var="eks_argocd_domain_name=${{ vars.ARGOCD_DOMAIN_NAME }}" \
-            -var="eks_grafana_domain_name=${{ vars.GRAFANA_DOMAIN_NAME }}" \
-            -var="eks_prometheus_domain_name=${{ vars.PROMETHEUS_DOMAIN_NAME }}" \
-            -var="new_relic_license_key=${{ secrets.NEW_RELIC_LICENSE_KEY }}"
+          echo "##[section]Applying the planned Addons..."
+          terraform apply -input=false tfplan
 
   configs:
     name: 'AWS - CONFIGS'
     needs: addons
     runs-on: ubuntu-latest
     env:
-      EKS_NAMESPACE: 'eks-namespace'
-      EKS_INGRESS_NAME: 'ingress-nginx'
       EKS_CERT_MANAGER_NAMESPACE: 'cert-manager'
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - name: AWS Credentials - Configure
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: AWS Credentials - Configure (OIDC)
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ vars.AWS_IAC_ROLE_ARN }}
+          role-session-name: gha-configs-${{ github.run_id }}
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: EKS Cluster - Setup
-        uses: azure/setup-kubectl@v3
-        with:
-          version: 'latest'
+        uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4.0.1
 
       - name: EKS Cluster - Connect
         run: |
@@ -218,15 +228,16 @@ jobs:
           echo "--------------------------------------------------"
 
           echo "##[section]Applying the Ingress Nginx Rules..."
-          kubectl wait --namespace ${{ env.EKS_NAMESPACE }} \
+          kubectl wait --namespace ${{ env.INGRESS_NAMESPACE }} \
             --for=condition=ready pod \
             --selector=app.kubernetes.io/component=controller \
             --timeout=180s
+          sed -i "s|#{apis_domain}#|${{ vars.APIS_DOMAIN_NAME }}|g" eks-templates/ingress-rules.yml
           kubectl apply -f eks-templates/ingress-rules.yml
           sleep 3
 
           echo "##[section]Validating the Ingress Nginx Services..."
-          kubectl get service --namespace ${{ env.EKS_NAMESPACE }} ingress-nginx-controller
+          kubectl get service --namespace ${{ env.INGRESS_NAMESPACE }} ingress-nginx-controller
 
       - name: Cert-Manager - Apply Rules
         run: |
@@ -238,6 +249,7 @@ jobs:
           kubectl wait --namespace ${{ env.EKS_CERT_MANAGER_NAMESPACE }} \
             --for=condition=Available deployment/cert-manager-webhook \
             --timeout=180s
+          sed -i "s|#{letsencrypt_email}#|${{ vars.LETSENCRYPT_EMAIL }}|g" eks-templates/cert-manager-rules.yml
           kubectl apply -f eks-templates/cert-manager-rules.yml
           sleep 3
 
@@ -253,7 +265,7 @@ jobs:
           echo "##[section]Waiting for the NGINX Service to provision the NLB..."
           NLB_DNS=""
           while [ -z "$NLB_DNS" ]; do
-            NLB_DNS=$(kubectl get svc ingress-nginx-controller --namespace ${{ env.EKS_NAMESPACE }} --output jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+            NLB_DNS=$(kubectl get svc ingress-nginx-controller --namespace ${{ env.INGRESS_NAMESPACE }} --output jsonpath='{.status.loadBalancer.ingress[0].hostname}')
 
             if [ -z "$NLB_DNS" ]; then
               echo "##[section]Waiting another 10 seconds..."
@@ -262,90 +274,33 @@ jobs:
           done
           echo "##[section]New NLB Detected: $NLB_DNS"
 
-          cat <<EOF > route53-update.json
-          {
-            "Comment": "Automatic NLB update via GitHub Actions",
-            "Changes": [
-              {
-                "Action": "UPSERT",
-                "ResourceRecordSet": {
-                  "Name": "${{ vars.APIS_DOMAIN_NAME }}",
-                  "Type": "CNAME",
-                  "TTL": 60,
-                  "ResourceRecords": [
-                    {
-                      "Value": "$NLB_DNS"
-                    }
-                  ]
-                }
-              },
-              {
-                "Action": "UPSERT",
-                "ResourceRecordSet": {
-                  "Name": "${{ vars.ARGOCD_DOMAIN_NAME }}",
-                  "Type": "CNAME",
-                  "TTL": 60,
-                  "ResourceRecords": [
-                    {
-                      "Value": "$NLB_DNS"
-                    }
-                  ]
-                }
-              },
-              {
-                "Action": "UPSERT",
-                "ResourceRecordSet": {
-                  "Name": "${{ vars.GRAFANA_DOMAIN_NAME }}",
-                  "Type": "CNAME",
-                  "TTL": 60,
-                  "ResourceRecords": [
-                    {
-                      "Value": "$NLB_DNS"
-                    }
-                  ]
-                }
-              },
-              {
-                "Action": "UPSERT",
-                "ResourceRecordSet": {
-                  "Name": "${{ vars.PROMETHEUS_DOMAIN_NAME }}",
-                  "Type": "CNAME",
-                  "TTL": 60,
-                  "ResourceRecords": [
-                    {
-                      "Value": "$NLB_DNS"
-                    }
-                  ]
-                }
-              }
-            ]
-          }
-          EOF
+          CHANGES=""
+          for HOST in "${{ vars.APIS_DOMAIN_NAME }}" "${{ vars.ARGOCD_DOMAIN_NAME }}" "${{ vars.GRAFANA_DOMAIN_NAME }}" "${{ vars.PROMETHEUS_DOMAIN_NAME }}"; do
+            CHANGES="$CHANGES{\"Action\":\"UPSERT\",\"ResourceRecordSet\":{\"Name\":\"$HOST\",\"Type\":\"CNAME\",\"TTL\":60,\"ResourceRecords\":[{\"Value\":\"$NLB_DNS\"}]}},"
+          done
+          echo "{\"Comment\":\"Automatic NLB update via GitHub Actions\",\"Changes\":[${CHANGES%,}]}" > route53-update.json
 
           echo "##[section]Updating Route53..."
-          aws route53 change-resource-record-sets --hosted-zone-id ${{ secrets.HOSTED_ZONE_ID }} --change-batch file://route53-update.json
+          aws route53 change-resource-record-sets --hosted-zone-id ${{ vars.HOSTED_ZONE_ID }} --change-batch file://route53-update.json
 
   destroy:
     name: 'AWS - TERRAFORM - DESTROY'
+    if: inputs.action == 'destroy'
     runs-on: ubuntu-latest
     environment: 'DESTROY_APPROVAL'
-    permissions:
-      id-token: write
-      contents: read
-
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - name: AWS Credentials - Configure
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: AWS Credentials - Configure (OIDC)
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ vars.AWS_IAC_ROLE_ARN }}
+          role-session-name: gha-destroy-${{ github.run_id }}
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Terraform - Setup
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
@@ -359,7 +314,10 @@ jobs:
           echo "##[section]Initializing Terraform..."
           terraform init \
             -backend-config="bucket=${{ vars.AWS_BUCKET_NAME }}" \
-            -backend-config="key=${{ vars.AWS_BUCKET_ADDONS_FOLDER_NAME}}"
+            -backend-config="key=${{ vars.AWS_BUCKET_ADDONS_FOLDER_NAME }}" \
+            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="encrypt=true" \
+            -backend-config="use_lockfile=true"
 
       - name: Terraform - Destroy - Addons
         working-directory: ${{ env.TF_WORKING_DIR }}/addons
@@ -369,7 +327,7 @@ jobs:
           echo "--------------------------------------------------"
 
           echo "##[section]Destroying the Addons..."
-          terraform destroy -auto-approve \
+          terraform destroy -auto-approve -input=false \
             -var="aws_region=${{ vars.AWS_REGION }}" \
             -var="aws_bucket_iac_name=${{ vars.AWS_BUCKET_NAME }}" \
             -var="aws_bucket_iac_folder_name=${{ vars.AWS_BUCKET_IAC_FOLDER_NAME }}" \
@@ -377,7 +335,8 @@ jobs:
             -var="eks_argocd_domain_name=${{ vars.ARGOCD_DOMAIN_NAME }}" \
             -var="eks_grafana_domain_name=${{ vars.GRAFANA_DOMAIN_NAME }}" \
             -var="eks_prometheus_domain_name=${{ vars.PROMETHEUS_DOMAIN_NAME }}" \
-            -var="new_relic_license_key=${{ secrets.NEW_RELIC_LICENSE_KEY }}"
+            -var="datadog_site=${{ vars.DATADOG_SITE || 'datadoghq.com' }}" \
+            -var="datadog_api_key=${{ secrets.DATADOG_API_KEY }}"
 
       - name: Terraform - Init - Infrastructure
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -389,7 +348,10 @@ jobs:
           echo "##[section]Initializing Terraform..."
           terraform init \
             -backend-config="bucket=${{ vars.AWS_BUCKET_NAME }}" \
-            -backend-config="key=${{ vars.AWS_BUCKET_IAC_FOLDER_NAME }}"
+            -backend-config="key=${{ vars.AWS_BUCKET_IAC_FOLDER_NAME }}" \
+            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="encrypt=true" \
+            -backend-config="use_lockfile=true"
 
       - name: Terraform - Destroy - Infrastructure
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -399,7 +361,7 @@ jobs:
           echo "--------------------------------------------------"
 
           echo "##[section]Destroying the Infrastructure..."
-          terraform destroy -auto-approve \
+          terraform destroy -auto-approve -input=false \
             -var="aws_region=${{ vars.AWS_REGION }}" \
             -var="eks_cluster_name=${{ env.EKS_CLUSTER_NAME }}" \
             -var="db_user=${{ secrets.DB_USER }}" \

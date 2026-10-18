@@ -68,8 +68,8 @@ resource "aws_eip" "nat_eip" {
 resource "aws_nat_gateway" "gw" {
   allocation_id = aws_eip.nat_eip.id
   subnet_id     = aws_subnet.publicA.id
-  tags   = { Name = var.nat_gw_name }
-  depends_on = [aws_internet_gateway.igw]
+  tags          = { Name = var.nat_gw_name }
+  depends_on    = [aws_internet_gateway.igw]
 }
 
 # Tabela de Rotas Pública e Associação
@@ -98,7 +98,7 @@ resource "aws_route_table" "private_rt" {
     cidr_block     = "0.0.0.0/0"
     nat_gateway_id = aws_nat_gateway.gw.id
   }
-  tags   = { Name = var.rt_private_name }
+  tags = { Name = var.rt_private_name }
 }
 
 resource "aws_route_table_association" "private_assoc" {

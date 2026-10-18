@@ -28,6 +28,8 @@ resource "helm_release" "kube_prometheus_stack" {
               - "${var.eks_grafana_domain_name}"
             secretName: "grafana-tls-cert"
     prometheus:
+      prometheusSpec:
+        enableRemoteWriteReceiver: true
       ingress:
         enabled: true
         ingressClassName: "nginx"
@@ -76,6 +78,8 @@ resource "helm_release" "opentelemetry_collector" {
   values = [
     <<-EOT
     mode: deployment
+    image:
+      repository: otel/opentelemetry-collector-contrib
     config:
       receivers:
         otlp:
@@ -84,11 +88,12 @@ resource "helm_release" "opentelemetry_collector" {
               endpoint: 0.0.0.0:4317
             http:
               endpoint: 0.0.0.0:4318
+      connectors:
+        datadog/connector: {}
       exporters:
-        otlp/newrelic:
-          endpoint: "otlp.nr-data.net:4317"
-          headers:
-            "api-key": "${var.new_relic_license_key}"
+        datadog:
+          api:
+            site: "${var.datadog_site}"
         prometheusremotewrite:
           endpoint: "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/api/v1/write"
           tls:
@@ -98,13 +103,19 @@ resource "helm_release" "opentelemetry_collector" {
           traces:
             receivers: [otlp]
             processors: [memory_limiter, batch]
-            exporters: [otlp/newrelic]
+            exporters: [datadog/connector, datadog]
           metrics:
-            receivers: [otlp]
+            receivers: [otlp, datadog/connector]
             processors: [memory_limiter, batch]
-            exporters: [prometheusremotewrite, otlp/newrelic]
+            exporters: [prometheusremotewrite, datadog]
     EOT
   ]
+
+  # A API key vai por set_sensitive para não aparecer no plan nem nos values
+  set_sensitive {
+    name  = "config.exporters.datadog.api.key"
+    value = var.datadog_api_key
+  }
 }
 
 # Obter a senha - Gitbash

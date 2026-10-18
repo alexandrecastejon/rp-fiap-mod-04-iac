@@ -21,8 +21,8 @@ resource "aws_iam_policy" "dynamodb_shared_policy" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect   = "Allow"
-      Action   = [
+      Effect = "Allow"
+      Action = [
         "dynamodb:PutItem",
         "dynamodb:GetItem",
         "dynamodb:UpdateItem",
@@ -45,7 +45,7 @@ data "aws_iam_policy_document" "analytics_assume_role" {
       values   = ["system:serviceaccount:eks-namespace:analytics-sa"]
     }
     principals {
-      identifiers = [var.eks_oidc_provider_arn] 
+      identifiers = [var.eks_oidc_provider_arn]
       type        = "Federated"
     }
   }
@@ -66,5 +66,5 @@ resource "aws_iam_role_policy_attachment" "analytics_dynamo_attach" {
 # Anexa a permissão do SQS na Role
 resource "aws_iam_role_policy_attachment" "analytics_sqs_attach" {
   role       = aws_iam_role.analytics_role.name
-  policy_arn = var.sqs_shared_policy_arn 
+  policy_arn = var.sqs_shared_policy_arn
 }
