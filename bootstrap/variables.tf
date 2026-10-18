@@ -22,6 +22,24 @@ variable "github_owner" {
   default     = "alexandrecastejon"
 }
 
+variable "github_owner_id" {
+  description = "ID numérico do dono dos repositórios (gh api users/<owner> --jq .id)"
+  type        = string
+  default     = "106316080"
+}
+
+variable "iac_repo_id" {
+  description = "ID numérico do repositório de IaC (gh api repos/<owner>/<repo> --jq .id)"
+  type        = string
+  default     = "1424274829"
+}
+
+variable "app_repo_id" {
+  description = "ID numérico do repositório de aplicações"
+  type        = string
+  default     = "1424274878"
+}
+
 variable "iac_repo" {
   description = "Repositório de infraestrutura que pode assumir a role de IaC"
   type        = string

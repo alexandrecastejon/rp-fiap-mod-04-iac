@@ -34,6 +34,12 @@ locals {
   account_id  = data.aws_caller_identity.current.account_id
   bucket_name = "${var.state_bucket_prefix}-${local.account_id}"
   oidc_host   = "token.actions.githubusercontent.com"
+
+  # O GitHub emite o "sub" no formato imutável, com os IDs numéricos do dono e
+  # do repositório. Se o repositório for apagado e recriado com o mesmo nome,
+  # o ID muda e a trust deixa de aceitar o token.
+  iac_sub = "repo:${var.github_owner}@${var.github_owner_id}/${var.iac_repo}@${var.iac_repo_id}"
+  app_sub = "repo:${var.github_owner}@${var.github_owner_id}/${var.app_repo}@${var.app_repo_id}"
 }
 
 # ------------------------------
@@ -130,9 +136,9 @@ resource "aws_iam_role" "github_iac" {
         StringEquals = { "${local.oidc_host}:aud" = "sts.amazonaws.com" }
         StringLike = {
           "${local.oidc_host}:sub" = [
-            "repo:${var.github_owner}/${var.iac_repo}:ref:refs/heads/main",
-            "repo:${var.github_owner}/${var.iac_repo}:environment:APPLY_APPROVAL",
-            "repo:${var.github_owner}/${var.iac_repo}:environment:DESTROY_APPROVAL",
+            "${local.iac_sub}:ref:refs/heads/main",
+            "${local.iac_sub}:environment:APPLY_APPROVAL",
+            "${local.iac_sub}:environment:DESTROY_APPROVAL",
           ]
         }
       }
@@ -161,9 +167,9 @@ resource "aws_iam_role" "github_app" {
         StringEquals = { "${local.oidc_host}:aud" = "sts.amazonaws.com" }
         StringLike = {
           "${local.oidc_host}:sub" = [
-            "repo:${var.github_owner}/${var.app_repo}:ref:refs/heads/main",
+            "${local.app_sub}:ref:refs/heads/main",
             # job de teste de carga do KEDA, protegido por aprovação manual
-            "repo:${var.github_owner}/${var.app_repo}:environment:APPLY_APPROVAL",
+            "${local.app_sub}:environment:APPLY_APPROVAL",
           ]
         }
       }
@@ -239,7 +245,7 @@ resource "aws_iam_role" "github_selfheal" {
       Condition = {
         StringEquals = {
           "${local.oidc_host}:aud" = "sts.amazonaws.com"
-          "${local.oidc_host}:sub" = "repo:${var.github_owner}/${var.iac_repo}:environment:SELF_HEALING"
+          "${local.oidc_host}:sub" = "${local.iac_sub}:environment:SELF_HEALING"
         }
       }
     }]
