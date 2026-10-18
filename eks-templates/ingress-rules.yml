@@ -45,19 +45,42 @@ spec:
       labels:
         app: homepage
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: nginx
-        image: nginx:alpine
+        # Variante sem root do nginx (porta 8080), fixada por digest
+        image: nginxinc/nginx-unprivileged:1.29-alpine@sha256:0c79d56aee561a1d81c63f00eee5fb5fe29279560cdc55e91425133104c7fbe6
         ports:
-        - containerPort: 80
+        - containerPort: 8080
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: "10m"
+            memory: "16Mi"
+          limits:
+            memory: "64Mi"
         volumeMounts:
         - name: html-volume
           mountPath: /usr/share/nginx/html/index.html
           subPath: index.html
+        - name: tmp
+          mountPath: /tmp
       volumes:
       - name: html-volume
         configMap:
           name: homepage-html
+      - name: tmp
+        emptyDir:
+          medium: Memory
+          sizeLimit: 16Mi
 
 ---
 apiVersion: v1
@@ -71,7 +94,7 @@ spec:
   ports:
   - protocol: TCP
     port: 80
-    targetPort: 80
+    targetPort: 8080
 
 ---
 apiVersion: networking.k8s.io/v1

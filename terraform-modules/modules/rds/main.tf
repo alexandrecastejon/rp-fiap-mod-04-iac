@@ -18,6 +18,7 @@ resource "aws_db_instance" "postgres" {
   vpc_security_group_ids = var.security_groups
   multi_az               = false
   publicly_accessible    = false
+  storage_encrypted      = true
   skip_final_snapshot    = true
   deletion_protection    = false
   tags                   = { Name = var.rds_name }

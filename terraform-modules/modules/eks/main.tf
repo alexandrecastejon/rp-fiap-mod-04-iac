@@ -16,11 +16,48 @@ resource "aws_iam_role_policy_attachment" "cluster_policy" {
   role       = aws_iam_role.cluster_role.name
 }
 
+# Chave KMS para criptografar os Secrets do Kubernetes no etcd (envelope encryption).
+# Sem ela, os Secrets (senhas do banco, MASTER_KEY, API key do Datadog) ficam só em base64.
+resource "aws_kms_key" "eks_secrets" {
+  description             = "Criptografia dos Secrets do cluster ${var.cluster_name}"
+  enable_key_rotation     = true
+  deletion_window_in_days = 7
+}
+
+resource "aws_kms_alias" "eks_secrets" {
+  name          = "alias/${var.cluster_name}-secrets"
+  target_key_id = aws_kms_key.eks_secrets.key_id
+}
+
+# O control plane precisa usar a chave para cifrar/decifrar os Secrets
+resource "aws_iam_role_policy" "cluster_kms" {
+  name = "${var.cluster_name}-secrets-kms"
+  role = aws_iam_role.cluster_role.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["kms:Encrypt", "kms:Decrypt", "kms:ListGrants", "kms:DescribeKey"]
+      Resource = aws_kms_key.eks_secrets.arn
+    }]
+  })
+}
+
+# Logs do control plane: "audit" registra quem fez o quê no cluster (inclusive o
+# rollout restart do self-healing); "authenticator" registra a autenticação IAM.
+# O log group é criado antes do cluster para limitar a retenção (custo).
+resource "aws_cloudwatch_log_group" "eks" {
+  name              = "/aws/eks/${var.cluster_name}/cluster"
+  retention_in_days = 1
+}
+
 # Elastic Kubernetes Service (EKS)
 resource "aws_eks_cluster" "main" {
   name     = var.cluster_name
   role_arn = aws_iam_role.cluster_role.arn
   version  = "1.36"
+
+  enabled_cluster_log_types = ["audit", "authenticator"]
   vpc_config {
     subnet_ids              = var.subnet_ids
     endpoint_private_access = true
@@ -34,7 +71,17 @@ resource "aws_eks_cluster" "main" {
     # Sem admin implícito para quem cria o cluster: todo acesso é declarado abaixo
     bootstrap_cluster_creator_admin_permissions = false
   }
-  depends_on = [aws_iam_role_policy_attachment.cluster_policy]
+  encryption_config {
+    resources = ["secrets"]
+    provider {
+      key_arn = aws_kms_key.eks_secrets.arn
+    }
+  }
+  depends_on = [
+    aws_iam_role_policy_attachment.cluster_policy,
+    aws_iam_role_policy.cluster_kms,
+    aws_cloudwatch_log_group.eks,
+  ]
 }
 
 # IAM Role para Worker Nodes

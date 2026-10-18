@@ -14,10 +14,11 @@ resource "aws_internet_gateway" "igw" {
 
 # Sub-rede Pública 1 (Para Load Balancers EKS - AZ a)
 resource "aws_subnet" "publicA" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = cidrsubnet(var.vpc_cidr, 6, 1) # Ex: 10.0.4.0/22
-  availability_zone       = "${var.region}a"
-  map_public_ip_on_launch = true
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = cidrsubnet(var.vpc_cidr, 6, 1) # Ex: 10.0.4.0/22
+  availability_zone = "${var.region}a"
+  # Sub-redes públicas só hospedam NAT Gateway (EIP) e o NLB: nada recebe IP público automático
+  map_public_ip_on_launch = false
   tags = {
     Name                     = var.subnet_publicA_name
     "kubernetes.io/role/elb" = "1"
@@ -26,10 +27,11 @@ resource "aws_subnet" "publicA" {
 
 # Sub-rede Pública 2 (Para Load Balancers EKS - AZ b)
 resource "aws_subnet" "publicB" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = cidrsubnet(var.vpc_cidr, 6, 2) # Ex: 10.0.8.0/22
-  availability_zone       = "${var.region}b"
-  map_public_ip_on_launch = true
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = cidrsubnet(var.vpc_cidr, 6, 2) # Ex: 10.0.8.0/22
+  availability_zone = "${var.region}b"
+  # Sub-redes públicas só hospedam NAT Gateway (EIP) e o NLB: nada recebe IP público automático
+  map_public_ip_on_launch = false
   tags = {
     Name                     = var.subnet_publicB_name
     "kubernetes.io/role/elb" = "1"
