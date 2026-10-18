@@ -266,6 +266,11 @@ jobs:
           echo "##[section]Validating the Cert-Manager Pods..."
           kubectl get pods --namespace ${{ env.EKS_CERT_MANAGER_NAMESPACE }}
 
+      - name: RBAC - Self-Healing
+        run: |
+          # Grupo do self-healing só pode reiniciar Deployments no namespace das aplicações
+          kubectl apply -f eks-templates/rbac-self-healing.yml
+
       - name: Route53 - Update
         run: |
           echo "================ Route53 - Update ================"

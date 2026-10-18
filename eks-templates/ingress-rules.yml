@@ -145,3 +145,32 @@ spec:
                 name: analytics-service
                 port:
                   number: 8005
+---
+# Rotas administrativas do auth-service (criação de chaves, injeção de falha)
+# nunca expostas na internet: este Ingress mais específico nega todo acesso
+# externo (403). A administração é feita de dentro do cluster (port-forward).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: "ingress-nginx-deny-admin"
+  namespace: "eks-namespace"
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/whitelist-source-range: "127.0.0.1/32"
+spec:
+  tls:
+    - hosts:
+      - "#{apis_domain}#"
+      secretName: apis-tls-cert
+  ingressClassName: nginx
+  rules:
+    - host: "#{apis_domain}#"
+      http:
+        paths:
+          - path: /auth/admin(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: auth-service
+                port:
+                  number: 8001

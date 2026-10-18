@@ -23,6 +23,11 @@ variable "app_deployer_arn" {
   type        = string
 }
 
+variable "selfheal_role_arn" {
+  description = "ARN da role do workflow de self-healing (mapeada para RBAC restrito)"
+  type        = string
+}
+
 variable "app_namespace" {
   description = "Namespace onde as aplicações são implantadas"
   type        = string

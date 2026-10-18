@@ -1,0 +1,124 @@
+name: FIAP - MODULO 04 - SELF-HEALING
+
+# Disparado pelo webhook do monitor do Datadog (workflow_dispatch via API) ou manualmente.
+# Runbook: docs/runbooks/auth-service-5xx.md
+on:
+  workflow_dispatch:
+    inputs:
+      deployment:
+        description: 'Deployment a reiniciar'
+        type: choice
+        options:
+          - auth-deployment
+          - flag-deployment
+          - targeting-deployment
+          - evaluation-deployment
+          - analytics-deployment
+        default: auth-deployment
+      alert_status:
+        description: 'Transição do alerta (enviada pelo Datadog)'
+        required: false
+        default: 'Triggered'
+      alert_title:
+        description: 'Título do alerta'
+        required: false
+        default: 'Execução manual'
+      alert_id:
+        description: 'ID do alerta no Datadog'
+        required: false
+        default: '-'
+      alert_link:
+        description: 'Link do evento no Datadog'
+        required: false
+        default: '-'
+
+permissions:
+  contents: read
+
+# Um restart por deployment de cada vez; alertas repetidos não empilham execuções
+concurrency:
+  group: self-healing-${{ inputs.deployment }}
+  cancel-in-progress: false
+
+env:
+  EKS_CLUSTER_NAME: 'eks-cluster-01'
+  APP_NAMESPACE: 'eks-namespace'
+
+jobs:
+  rollout-restart:
+    name: 'SELF-HEALING - ROLLOUT RESTART'
+    # Só age quando o alerta dispara (não na recuperação)
+    if: inputs.alert_status == 'Triggered'
+    runs-on: ubuntu-latest
+    # Environment sem aprovação manual (a automação precisa agir sozinha),
+    # mas é a única origem aceita pela role gha-togglemaster-selfheal
+    environment: 'SELF_HEALING'
+    permissions:
+      id-token: write
+      contents: read
+    timeout-minutes: 10
+    env:
+      # Entradas vindas de fora sempre via env, nunca interpoladas direto no script
+      DEPLOYMENT: ${{ inputs.deployment }}
+      ALERT_TITLE: ${{ inputs.alert_title }}
+      ALERT_ID: ${{ inputs.alert_id }}
+      ALERT_LINK: ${{ inputs.alert_link }}
+    steps:
+      - name: Input - Validate
+        run: |
+          case "$DEPLOYMENT" in
+            auth-deployment|flag-deployment|targeting-deployment|evaluation-deployment|analytics-deployment) ;;
+            *) echo "::error::Deployment não permitido: $DEPLOYMENT"; exit 1 ;;
+          esac
+          echo "Alerta: $ALERT_TITLE (id $ALERT_ID)"
+
+      - name: AWS Credentials - Configure (OIDC)
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          role-to-assume: ${{ vars.AWS_SELFHEAL_ROLE_ARN }}
+          role-session-name: gha-selfheal-${{ github.run_id }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: EKS Cluster - Setup
+        uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4.0.1
+
+      - name: EKS Cluster - Connect
+        run: aws eks update-kubeconfig --region ${{ vars.AWS_REGION }} --name $EKS_CLUSTER_NAME
+
+      - name: Self-Healing - Before
+        run: |
+          echo "##[section]Estado antes da ação corretiva"
+          kubectl -n $APP_NAMESPACE get deployment "$DEPLOYMENT" -o wide
+          kubectl -n $APP_NAMESPACE get pods -l "app=${DEPLOYMENT%-deployment}-service" -o wide
+
+      - name: Self-Healing - Rollout Restart
+        run: |
+          echo "##[section]Executando: kubectl rollout restart deployment/$DEPLOYMENT"
+          kubectl -n $APP_NAMESPACE rollout restart deployment "$DEPLOYMENT"
+          kubectl -n $APP_NAMESPACE rollout status deployment "$DEPLOYMENT" --timeout=300s
+
+      - name: Self-Healing - After
+        if: always()
+        run: |
+          echo "##[section]Estado após a ação corretiva"
+          kubectl -n $APP_NAMESPACE get pods -l "app=${DEPLOYMENT%-deployment}-service" -o wide
+
+      - name: Evidence - Job Summary
+        if: always()
+        run: |
+          {
+            echo "## 🩺 Self-healing — ${DEPLOYMENT}"
+            echo ""
+            echo "| Campo | Valor |"
+            echo "|---|---|"
+            echo "| Alerta | ${ALERT_TITLE} |"
+            echo "| ID do alerta (Datadog) | ${ALERT_ID} |"
+            echo "| Evento | ${ALERT_LINK} |"
+            echo "| Ação | \`kubectl rollout restart deployment/${DEPLOYMENT}\` |"
+            echo "| Resultado | ${{ job.status }} |"
+            echo "| Executado em | $(date -u '+%Y-%m-%d %H:%M:%S UTC') |"
+            echo ""
+            echo '```'
+            kubectl -n $APP_NAMESPACE get pods -l "app=${DEPLOYMENT%-deployment}-service" -o wide 2>&1 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
