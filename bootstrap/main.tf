@@ -10,7 +10,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.0"
+      version = "~> 6.69"
     }
   }
   # State local de propósito: este stack cria o próprio bucket de state.
