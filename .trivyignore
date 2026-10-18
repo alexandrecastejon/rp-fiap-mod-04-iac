@@ -1,0 +1,15 @@
+# Riscos aceitos — cada exceção tem justificativa e data de expiração.
+# Após a data o Trivy volta a reportar o achado e o pipeline bloqueia de novo.
+
+# EKS com endpoint público aberto (AWS-0040 / AWS-0041)
+# Motivo: os runners hospedados do GitHub Actions usam IPs dinâmicos e precisam
+# da API do cluster (addons, deploy, self-healing). Mitigação: toda chamada exige
+# autenticação IAM + access entry; não há admin implícito; cada pipeline tem role
+# OIDC de menor privilégio. Saída definitiva: runner self-hosted dentro da VPC.
+AWS-0040 exp:2026-12-31
+AWS-0041 exp:2026-12-31
+
+# Bucket do Terraform state com SSE-S3 em vez de chave KMS própria (AWS-0132)
+# Motivo: SSE-S3 + versionamento + bloqueio de acesso público + TLS obrigatório
+# é adequado para o state deste ambiente; CMK adicionaria custo e gestão de chave.
+AWS-0132 exp:2026-12-31
