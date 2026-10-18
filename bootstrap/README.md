@@ -35,7 +35,7 @@ terraform output
 | Variable | `AWS_BUCKET_ADDONS_FOLDER_NAME` | ex.: `addons/terraform.tfstate` |
 | Variable | `HOSTED_ZONE_ID` | ID da hosted zone do domínio no Route53 |
 | Variable | `APIS_DOMAIN_NAME` / `ARGOCD_DOMAIN_NAME` / `GRAFANA_DOMAIN_NAME` / `PROMETHEUS_DOMAIN_NAME` | subdomínios do domínio registrado |
-| Variable | `LETSENCRYPT_EMAIL` | e-mail para avisos de expiração dos certificados |
+| Secret | `LETSENCRYPT_EMAIL` | e-mail para avisos de expiração dos certificados (secret para não aparecer nos logs públicos) |
 | Variable | `DATADOG_SITE` | opcional, padrão `datadoghq.com` |
 | Secret | `DB_USER` / `DB_PASS` | credenciais dos RDS |
 | Secret | `DATADOG_API_KEY` | API key dedicada ao projeto |
